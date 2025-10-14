@@ -1,0 +1,8 @@
+__pycache__
+.venv
+/audio-input
+/FAST-Endpoints
+/Ollama-Endpoints
+/out
+/voice
+.env
