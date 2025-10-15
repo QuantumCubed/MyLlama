@@ -18,6 +18,8 @@ class Execution(Enum):
 
 class Tool(Enum):
     get_local_time = "get_local_time"
+    turn_lights_off = "turn_lights_off"
+    turn_lights_on = "turn_lights_on"
 
 class FunctionToolSchema(BaseModel):
     fPtr: Callable
@@ -31,7 +33,17 @@ tool_registry = {
         execution=Execution.SYNCHRONOUS,
         type=FunctionType.STATIC,
         # args={"format": str, "timezone": tzinfo}
-    )
+    ),
+    Tool.turn_lights_off.value: FunctionToolSchema(
+        fPtr=Tool_Functions.turn_lights_off,
+        execution=Execution.ASYNCHRONOUS,
+        type=FunctionType.STATIC
+    ),
+        Tool.turn_lights_on.value: FunctionToolSchema(
+        fPtr=Tool_Functions.turn_lights_on,
+        execution=Execution.ASYNCHRONOUS,
+        type=FunctionType.STATIC
+    ),
 }
 
 tools: list[ChatCompletionToolParam] = [
@@ -62,6 +74,22 @@ tools: list[ChatCompletionToolParam] = [
                 "additionalProperties": False
             },
             "strict": True,
+        }
+    },
+
+    {
+        "type": "function",
+        "function": {
+            "name": "turn_lights_off",
+            "description": "Turns off lights",
+        }
+    },
+
+        {
+        "type": "function",
+        "function": {
+            "name": "turn_lights_on",
+            "description": "Turns on lights",
         }
     }
 ]

@@ -26,7 +26,6 @@ app.mount("/hls", StaticFiles(directory="out/hls"), name="hls")
 async def call_model(req: PySchemas.OllamaRequest):
     return await model.chat(req.prompt)
 
-
 @app.post("/chat-audio")
 async def call_model_audio(audio_file: UploadFile = File(...)):
 
@@ -35,7 +34,7 @@ async def call_model_audio(audio_file: UploadFile = File(...)):
         raise HTTPException(status_code=415, detail="Expected an audio/* file")
     
     await Audio_IO.write_audio_file(audio_file)
-            
+    
     req_prompt = XTT.synthesize_text()
 
     response = await model.chat(req_prompt)

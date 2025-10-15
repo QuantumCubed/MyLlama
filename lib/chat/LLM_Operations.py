@@ -1,3 +1,4 @@
+import json
 import os
 from pydantic import TypeAdapter, ValidationError
 from typing import Sequence, cast
@@ -21,7 +22,7 @@ class LLM_OPS:
             {"role": "system", "content": "Your Name is MyLlama"},
             # {"role": "system", "content": "Do not call tools"},
             # {"role": "system", "content": "You can call tools, however only call them as needed. When a tool returns data, use it as ground truth."},
-            {"role": "system", "content": "Answer the user as naturally as possible."}
+            # {"role": "system", "content": "Answer the user as naturally as possible."}
         ]
         self.messages: list[ChatCompletionMessageParam] = []
 
@@ -73,36 +74,41 @@ class LLM_OPS:
             initial_response.choices[0].message.tool_calls or [],
         )
 
-        # print(initial_response.choices[0].message.tool_calls)
+        print(initial_response.choices[0].message.tool_calls)
         
         for tool in tool_calls:
-            if tool.function.name in Tool_Schema.Tool:
+            try:
+                tool_enum = Tool_Schema.Tool(tool.function.name.strip())
 
-                tool_obj = Tool_Schema.tool_registry[tool.function.name]
+                tool_obj = Tool_Schema.tool_registry[tool_enum.value]
                 function_call = tool_obj.fPtr
 
-                if tool.function.arguments:
+                args = json.loads(tool.function.arguments or "{}")
+
+                if args:
                     args = self.parse_args(tool.function.arguments)
 
-                try:
-                    if tool_obj.execution == Tool_Schema.Execution.SYNCHRONOUS: 
-                        result = function_call(**args)
-                    
-                    if tool_obj.execution == Tool_Schema.Execution.ASYNCHRONOUS: 
-                        result = await function_call(**args)
-
-                    if tool_obj.type == Tool_Schema.FunctionType.STATIC:
-                        return result
-                    
-                except ValidationError as e:
-                    return "TOOL_CALL ARG ERROR!"
+                if tool_obj.execution == Tool_Schema.Execution.SYNCHRONOUS: 
+                    result = function_call(**args)
                 
+                if tool_obj.execution == Tool_Schema.Execution.ASYNCHRONOUS:
+                    result = await function_call(**args)
+                    
+                if tool_obj.type == Tool_Schema.FunctionType.STATIC:
+                    return result
+                    
                 self.messages.append(cast(ChatCompletionToolMessageParam, {
                     "role": "tool",
                     "tool_call_id": tool.id,
                     "name": tool.function.name,
                     "content": result
                 }))
+
+            except ValidationError as e:
+                        return "TOOL_CALL ARG ERROR!"
+            
+            except ValueError:
+                return "NOT VALID ENUM - TOOL NOT AVAILABLE!"
 
         final_response: ChatCompletion = await self.OllamaClient.chat.completions.create(**self.model_args, messages=self.messages)
 
