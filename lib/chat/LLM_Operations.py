@@ -29,7 +29,7 @@ class LLM_OPS:
         self.messages.extend(self.sys_msg)
         
         self.model_args = ModelArguments(
-            model="qwen3:1.7b",
+            model="qwen3:14b",
             stream=False,
             tools=Tool_Schema.tools,
             tool_choice="auto",
