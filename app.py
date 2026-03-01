@@ -3,7 +3,7 @@ from typing import Sequence, cast
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
-from lib.audio import TTS, Audio_IO
+from lib.audio import STT, TTS, Audio_IO
 from lib.chat.LLM_Operations import LLM_OPS
 from lib.schema import PySchemas
 from lib.utils import string_utils
@@ -11,6 +11,8 @@ from lib.integrations.IoT import HomeAssistantWebSocket
 from contextlib import asynccontextmanager
 from lib.tools.Tool_Functions import ExternalTools
 from fastapi.responses import StreamingResponse
+import tempfile
+import os
 
 load_dotenv()
 
@@ -42,13 +44,24 @@ async def call_model(req: PySchemas.OllamaRequest):
 # maybe switch to PCM for audio instead of WAV?
 # SWITCH BACK TO .POST WHEN ABLE
 # need to cleanup response text from LLM (ast, md, etc,)
-@app.get("/chat-audio")
-async def call_model_audio():
+@app.post("/chat-audio")
+async def call_model_audio(audio: UploadFile = File(...)):
+
+    audio_bytes = await audio.read()
+
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+        tmp.write(audio_bytes)
+        tmp_path = tmp.name
+
+    prompt: str = STT.transcribe(tmp_path)
+
+    os.unlink(tmp_path)
+
     async def generate_audio_stream():
         sentence_buffer = ""
         first_chunk = True
-# "Tell me a short story"
-        async for chunk in MODEL.chat("tell me a story"):
+
+        async for chunk in MODEL.chat(prompt):
             sentence_buffer += chunk
 
             if any(sentence_buffer.endswith(p) for p in [".", "!", "?", "\n"]):
