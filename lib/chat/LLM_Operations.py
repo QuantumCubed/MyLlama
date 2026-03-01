@@ -9,6 +9,7 @@ class LLM_OPS:
             self.url = os.environ.get("MODEL_ENDPOINT")
             self.OllamaClient = AsyncClient(host=self.url)
             self.tools = {}
+            self.definitions
             self.conversation = []
             print("CONNECTION ESTABLISHED, OLLAMA CLIENT INITIALIZED!")
             
@@ -19,6 +20,13 @@ class LLM_OPS:
         for name, method in inspect.getmembers(external_tools, predicate=inspect.ismethod):
             if not name.startswith("_"):
                 self.tools[name] = method
+
+    @property
+    def definitions(self):
+        return [
+            method.tool_definition if hasattr(method, "tool_definition") else method
+            for method in self.tools.values()
+        ]
 
     async def chat(self, prompt: str) -> str | None:
 
@@ -32,7 +40,7 @@ class LLM_OPS:
                 model="qwen3:14b",
                 messages=self.conversation,
                 # tools=[Tool_Functions.time_now],
-                tools=list(self.tools.values()),
+                tools=self.definitions,
                 stream=False,
                 think=False
             )
@@ -56,11 +64,6 @@ class LLM_OPS:
 
             for tool_call in response.message.tool_calls:
                 tool = self.tools.get(tool_call.function.name)
-                
-                # if tool is None:
-                #     result = f"Unknown tool: {tool_call.function.name}"
-                # else:
-                #     result = await tool.execute(**tool_call.function.arguments)
 
                 if tool is None:
                     result = f"Unknown tool: {tool_call.function.name}"
@@ -76,6 +79,3 @@ class LLM_OPS:
                     "tool_name": tool_call.function.name,
                     "content": result
                 })
-
-                # if tool and tool.direct_return: // this breaks dynamic tool loading
-                #     return result
