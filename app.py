@@ -16,7 +16,12 @@ load_dotenv()
 mimetypes.add_type("application/vnd.apple.mpegurl", ".m3u8")
 mimetypes.add_type("audio/aac", ".aac")
 
+#init Ollam Connection
 model = LLM_OPS()
+
+# init HomeAssistant WebSocket
+# init DB Connection
+
 
 app = FastAPI()
 
@@ -38,6 +43,9 @@ async def call_model_audio(audio_file: UploadFile = File(...)):
     req_prompt = XTT.synthesize_text()
 
     response = await model.chat(req_prompt)
+
+    if response is None:
+        return "FAILED RESPONSE IS NULL!"
         
     TTX.synthesize_speech(string_utils.clean_text(response))
 
