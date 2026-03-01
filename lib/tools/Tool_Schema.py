@@ -2,7 +2,7 @@ from typing import Callable
 from enum import Enum
 
 from pydantic import BaseModel
-from lib.tools import Tool_Functions
+from lib.tools.Tool_Functions import ExternalTools
 
 # class FunctionType(Enum):
 #     STATIC = "static"
@@ -24,8 +24,13 @@ class Tool(BaseModel):
     
 ToolRegistry = {
     "time_now": Tool(
-        fn_ptr=Tool_Functions.time_now,
+        fn_ptr=ExternalTools.time_now,
         execution=Execution.SYNCHRONOUS,
         direct_return=True
+    ),
+    "standup_lamp_toggle": Tool(
+        fn_ptr=ExternalTools.standup_lamp_toggle,
+        execution=Execution.ASYNCHRONOUS,
+        direct_return=False
     )
 }

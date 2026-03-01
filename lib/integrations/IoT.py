@@ -1,28 +1,53 @@
 import os
-from dotenv import load_dotenv
-import httpx
-import asyncio
+import json
+import websockets
 
-# load_dotenv()
+class HomeAssistantWebSocket:
+    def __init__(self) -> None:
+        self.url = os.environ.get("HomeAssistant_Endpoint")
+        self.token = os.environ.get("HomeAssistant_Token")
+        self.ws = None
+        self.message_id = 0
 
-HUE_BASE_URL = "https://{}/api/{}/".format(os.environ.get("HUE_IP"), os.environ.get("HUE_AUTH_USER"))
+    async def connect(self) -> None:
 
-async def get_light_info():
-    async with httpx.AsyncClient(verify=False) as myLlama:
-        response = await myLlama.get(HUE_BASE_URL + "lights/2")
-        print(response)
-        print(str(response.content))
+        try:
+            if not self.url or not self.token:
+                raise Exception("URL/TOKEN Unavailable!")
+            
+            self.ws = await websockets.connect(self.url)
 
-async def lights_off():
-    async with httpx.AsyncClient(verify=False) as myLlama:
-        response = await myLlama.put(HUE_BASE_URL + "lights/2/state", json={"on":False})
-        print(response)
-        print(str(response.content))
+            await self.ws.recv()
 
-async def lights_on():
-    async with httpx.AsyncClient(verify=False) as myLlama:
-        response = await myLlama.put(HUE_BASE_URL + "lights/2/state", json={"on":True})
-        print(response)
-        print(str(response.content))
+            # complete handshake with auth
 
-# asyncio.run(lights_on())
+            await self.ws.send(json.dumps({
+                "type": "auth",
+                "access_token": self.token
+            }))
+
+            auth_conf = json.loads(await self.ws.recv())
+            if auth_conf["type"] != "auth_ok":
+                raise Exception("Authentication Failed!")
+            
+            print("Home Assistant WebSocket Connection Established!")
+            
+        except:
+            Exception("Unknown Connection Error!")
+
+    async def send(self, message: dict) -> dict:
+
+        if not self.ws:
+            raise Exception("No WebSocket Connection!")
+
+        self.message_id += 1
+
+        message["id"] = self.message_id
+        
+        await self.ws.send(json.dumps(message))
+
+        return json.loads(await self.ws.recv())
+    
+    async def disconnect(self):
+        if self.ws:
+            await self.ws.close()

@@ -9,6 +9,9 @@ from lib.audio import XTT, TTX, Audio_IO
 from lib.chat.LLM_Operations import LLM_OPS
 from lib.schema import PySchemas
 from lib.utils import string_utils
+from lib.integrations.IoT import HomeAssistantWebSocket
+from contextlib import asynccontextmanager
+from lib.tools.Tool_Functions import ExternalTools
 
 load_dotenv()
 
@@ -16,20 +19,33 @@ load_dotenv()
 mimetypes.add_type("application/vnd.apple.mpegurl", ".m3u8")
 mimetypes.add_type("audio/aac", ".aac")
 
-#init Ollam Connection
-model = LLM_OPS()
+MODEL = LLM_OPS()
+HA = HomeAssistantWebSocket()
 
-# init HomeAssistant WebSocket
-# init DB Connection
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+
+    # init HomeAssistant WebSocket
+
+    await HA.connect()
+
+    TOOLS = ExternalTools(HA)
+    MODEL.init_tools(TOOLS)
+
+    yield
+
+    await HA.disconnect()
+
+    # init DB Connection
 
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 app.mount("/hls", StaticFiles(directory="out/hls"), name="hls")
 
 @app.post("/chat")
 async def call_model(req: PySchemas.OllamaRequest):
-    return await model.chat(req.prompt)
+    return await MODEL.chat(req.prompt)
 
 @app.post("/chat-audio")
 async def call_model_audio(audio_file: UploadFile = File(...)):
@@ -42,7 +58,7 @@ async def call_model_audio(audio_file: UploadFile = File(...)):
     
     req_prompt = XTT.synthesize_text()
 
-    response = await model.chat(req_prompt)
+    response = await MODEL.chat(req_prompt)
 
     if response is None:
         return "FAILED RESPONSE IS NULL!"
