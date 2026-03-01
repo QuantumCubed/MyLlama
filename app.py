@@ -1,23 +1,18 @@
-import os, mimetypes
 from typing import Sequence, cast
 
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.staticfiles import StaticFiles
-from openai import AsyncOpenAI
 from dotenv import load_dotenv
-from lib.audio import XTT, TTX, Audio_IO
+from lib.audio import TTS, Audio_IO
 from lib.chat.LLM_Operations import LLM_OPS
 from lib.schema import PySchemas
 from lib.utils import string_utils
 from lib.integrations.IoT import HomeAssistantWebSocket
 from contextlib import asynccontextmanager
 from lib.tools.Tool_Functions import ExternalTools
+from fastapi.responses import StreamingResponse
 
 load_dotenv()
-
-# Ensure right MIME types
-mimetypes.add_type("application/vnd.apple.mpegurl", ".m3u8")
-mimetypes.add_type("audio/aac", ".aac")
 
 MODEL = LLM_OPS()
 HA = HomeAssistantWebSocket()
@@ -38,33 +33,38 @@ async def lifespan(app: FastAPI):
 
     # init DB Connection
 
-
 app = FastAPI(lifespan=lifespan)
-
-app.mount("/hls", StaticFiles(directory="out/hls"), name="hls")
 
 @app.post("/chat")
 async def call_model(req: PySchemas.OllamaRequest):
-    return await MODEL.chat(req.prompt)
+    return StreamingResponse(MODEL.chat(req.prompt), media_type="text/plain")
 
-@app.post("/chat-audio")
-async def call_model_audio(audio_file: UploadFile = File(...)):
+# maybe switch to PCM for audio instead of WAV?
+# SWITCH BACK TO .POST WHEN ABLE
+@app.get("/chat-audio")
+async def call_model_audio():
+    async def generate_audio_stream():
+        sentence_buffer = ""
+        first_chunk = True
+# "Tell me a short story"
+        async for chunk in MODEL.chat("tell me a story"):
+            sentence_buffer += chunk
 
-    # Optional: validate MIME type
-    if not (audio_file.content_type or "").startswith("audio/"):
-        raise HTTPException(status_code=415, detail="Expected an audio/* file")
-    
-    await Audio_IO.write_audio_file(audio_file)
-    
-    req_prompt = XTT.synthesize_text()
+            if any(sentence_buffer.endswith(p) for p in [".", "!", "?", "\n"]):
+                audio_bytes = TTS.synthesize_speech(sentence_buffer.strip())
+                # print(f"Audio bytes length: {len(audio_bytes)}")
+                # print(f"First 4 bytes: {audio_bytes[:4]}")
+                # print(sentence_buffer)
+                sentence_buffer = ""
+                
+                if first_chunk:
+                    yield audio_bytes
+                    first_chunk = False
+                else:
+                    yield audio_bytes[44:]
 
-    response = await MODEL.chat(req_prompt)
+        if sentence_buffer.strip():
+            audio_bytes = TTS.synthesize_speech(sentence_buffer.strip())
+            yield audio_bytes[44:] if not first_chunk else audio_bytes
 
-    if response is None:
-        return "FAILED RESPONSE IS NULL!"
-        
-    TTX.synthesize_speech(string_utils.clean_text(response))
-
-    await Audio_IO.write_HLS_chunks()
-
-    return "SUCCESS!"
+    return StreamingResponse(generate_audio_stream(), media_type="audio/wav")
