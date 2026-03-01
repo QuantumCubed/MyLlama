@@ -41,7 +41,6 @@ class LLM_OPS:
         async for chunk in await self.OllamaClient.chat(
             model="qwen3:14b",
             messages=self.conversation,
-            # tools=[Tool_Functions.time_now],
             tools=self.definitions,
             think=False,
             stream=True,
@@ -55,6 +54,8 @@ class LLM_OPS:
             "role": "assistant",
             "content": completed_response
         })
+
+        print(self.conversation)
 
     # async def chat(self, prompt: str) -> str | None:
 
