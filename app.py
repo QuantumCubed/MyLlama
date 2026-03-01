@@ -41,6 +41,7 @@ async def call_model(req: PySchemas.OllamaRequest):
 
 # maybe switch to PCM for audio instead of WAV?
 # SWITCH BACK TO .POST WHEN ABLE
+# need to cleanup response text from LLM (ast, md, etc,)
 @app.get("/chat-audio")
 async def call_model_audio():
     async def generate_audio_stream():
