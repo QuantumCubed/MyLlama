@@ -1,4 +1,4 @@
-from typing import Sequence, cast
+from typing import AsyncGenerator, Sequence, cast
 
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.staticfiles import StaticFiles
@@ -39,7 +39,10 @@ app = FastAPI(lifespan=lifespan)
 
 @app.post("/chat")
 async def call_model(req: PySchemas.OllamaRequest):
-    return StreamingResponse(MODEL.chat(req.prompt), media_type="text/plain")
+
+    response = await MODEL.route(req.prompt)
+
+    return StreamingResponse(response[1], media_type="text/plain") if response[0] and isinstance(response[1], AsyncGenerator) else response[1]
 
 # maybe switch to PCM for audio instead of WAV?
 # SWITCH BACK TO .POST WHEN ABLE
@@ -57,11 +60,13 @@ async def call_model_audio(audio: UploadFile = File(...)):
 
     os.unlink(tmp_path)
 
-    async def generate_audio_stream():
+    response = await MODEL.route(prompt)
+
+    async def generate_audio_stream(async_gen: AsyncGenerator):
         sentence_buffer = ""
         first_chunk = True
 
-        async for chunk in MODEL.chat(prompt):
+        async for chunk in async_gen:
             sentence_buffer += chunk
 
             if any(sentence_buffer.endswith(p) for p in [".", "!", "?", "\n"]):
@@ -81,4 +86,4 @@ async def call_model_audio(audio: UploadFile = File(...)):
             audio_bytes = TTS.synthesize_speech(sentence_buffer.strip())
             yield audio_bytes[44:] if not first_chunk else audio_bytes
 
-    return StreamingResponse(generate_audio_stream(), media_type="audio/wav")
+    return StreamingResponse(generate_audio_stream(response[1]), media_type="audio/wav") if response[0] and isinstance(response[1], AsyncGenerator) else "Unable Return Audio Stream!" # TTS.synthesize_speech(response[1]) NEED TO ADD STATIC AUDIO SUPPORT
