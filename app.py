@@ -13,6 +13,7 @@ from lib.tools.Tool_Functions import ExternalTools
 from fastapi.responses import StreamingResponse
 import tempfile
 import os
+from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
@@ -37,12 +38,24 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+origins = [
+    "http://localhost:3000"
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
+
 @app.post("/chat")
 async def call_model(req: PySchemas.OllamaRequest):
 
     response = await MODEL.route(req.prompt)
 
-    return StreamingResponse(response[1], media_type="text/plain") if response[0] and isinstance(response[1], AsyncGenerator) else response[1]
+    return StreamingResponse(response[1], media_type="text/event-stream") if response[0] and isinstance(response[1], AsyncGenerator) else response[1]
 
 # maybe switch to PCM for audio instead of WAV?
 # SWITCH BACK TO .POST WHEN ABLE
