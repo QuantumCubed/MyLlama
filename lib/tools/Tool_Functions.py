@@ -1,4 +1,4 @@
-from lib.integrations.IoT import HomeAssistantWebSocket
+from lib.integrations.home.IoT import HomeAssistantWebSocket
 
 def tool(description: str, parameters: dict | None = None):
     def decorator(func):

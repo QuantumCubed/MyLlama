@@ -7,7 +7,7 @@ from lib.audio import STT, TTS, Audio_IO
 from lib.chat.LLM_Operations import LLM_OPS
 from lib.schema import PySchemas
 from lib.utils import string_utils
-from lib.integrations.IoT import HomeAssistantWebSocket
+from lib.integrations.home.IoT import HomeAssistantWebSocket
 from contextlib import asynccontextmanager
 from lib.tools.Tool_Functions import ExternalTools
 from fastapi.responses import StreamingResponse
@@ -26,6 +26,8 @@ async def lifespan(app: FastAPI):
     # init HomeAssistant WebSocket
 
     await HA.connect()
+
+    # EVENTUALLY TIE HA WEBSOCKET TO APP STATE INSTEAD OF GLOBAL IMPORT
 
     TOOLS = ExternalTools(HA)
     MODEL.init_tools(TOOLS)
