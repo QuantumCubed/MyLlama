@@ -22,15 +22,15 @@ class Tool(BaseModel):
             return self.fn_ptr(**kwargs)
         return await self.fn_ptr(**kwargs)
     
-ToolRegistry = {
-    "time_now": Tool(
-        fn_ptr=ExternalTools.time_now,
-        execution=Execution.SYNCHRONOUS,
-        direct_return=True
-    ),
-    "standup_lamp_toggle": Tool(
-        fn_ptr=ExternalTools.standup_lamp_toggle,
-        execution=Execution.ASYNCHRONOUS,
-        direct_return=False
-    )
-}
+# ToolRegistry = {
+#     "time_now": Tool(
+#         fn_ptr=ExternalTools.time_now,
+#         execution=Execution.SYNCHRONOUS,
+#         direct_return=True
+#     ),
+#     "standup_lamp_toggle": Tool(
+#         fn_ptr=ExternalTools.standup_lamp_toggle,
+#         execution=Execution.ASYNCHRONOUS,
+#         direct_return=False
+#     )
+# }

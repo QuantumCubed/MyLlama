@@ -94,6 +94,8 @@ class LLM_OPS:
             for tool_call in response.message.tool_calls:
                 tool = self.tools.get(tool_call.function.name)
 
+                print(tool_call.function.arguments)
+
                 if tool is None:
                     result = f"Unknown tool: {tool_call.function.name}"
                 else:
