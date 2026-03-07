@@ -1,6 +1,6 @@
 from typing import AsyncGenerator, Sequence, cast
 
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, WebSocket
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from lib.audio import STT, TTS, Audio_IO
@@ -51,6 +51,41 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"]
 )
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    # add auth for initial handshake
+    await websocket.accept()
+    # add sequence tracking i.e. id: 1, 2, 3, ...n
+    while True:
+        msg = await websocket.receive_json()
+
+        match msg["type"]:
+            case "ping":
+                await websocket.send_json({"type": "pong"})
+            case "echo":
+                await websocket.send_json({"type": "echo", "message": msg["message"]})
+            case "audio_config":
+                await websocket.send_json({
+                    "type": "audio_config",
+                    "sample_rate": 24000,
+                    "bit_depth": 16,
+                    "channels": 1,
+                    "encoding": "pcm_s16le"
+                })
+            case "audio_out":
+                # audio_bytes = TTS.synthesize_speech(msg["message"])
+
+                # with open("test.pcm", "wb") as f:
+                #     f.write(audio_bytes)
+
+                await websocket.send_json({"audio_stream": "start"})
+
+                await TTS.synthesize_speech_stream(msg["message"], websocket)
+
+                await websocket.send_json({"audio_stream": "end"})
+
+
 
 @app.post("/chat")
 async def call_model(req: PySchemas.OllamaRequest):
