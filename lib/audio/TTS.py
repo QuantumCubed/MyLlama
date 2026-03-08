@@ -19,7 +19,6 @@ def synthesize_speech(text: str) -> bytes:
     return pcm.tobytes()
 
 async def synthesize_speech_stream(text: str, websocket: WebSocket) -> None:
-    chunks = []
     for _, _, audio in pipeline(text, voice="af_heart"):
         if isinstance(audio, torch.Tensor):
             pcm = (audio.cpu().numpy() * 32767).astype(np.int16) # PCM_16 conversion (PCM_S16LE)

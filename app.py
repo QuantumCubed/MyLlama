@@ -60,11 +60,11 @@ async def websocket_endpoint(websocket: WebSocket):
     while True:
         msg = await websocket.receive_json()
 
-        match msg["type"]:
+        match msg["service"]:
             case "ping":
-                await websocket.send_json({"type": "pong"})
+                await websocket.send_json({"service": "pong"})
             case "echo":
-                await websocket.send_json({"type": "echo", "message": msg["message"]})
+                await websocket.send_json({"service": "echo", "message": msg["message"]})
             case "audio_config":
                 await websocket.send_json({
                     "type": "audio_config",
@@ -73,67 +73,51 @@ async def websocket_endpoint(websocket: WebSocket):
                     "channels": 1,
                     "encoding": "pcm_s16le"
                 })
-            case "audio_out":
+            case "chat":
+
+                prompt: str = msg["prompt"] if not None else ""
+
+                response = await MODEL.route(prompt)
+
+                await websocket.send_json({"chat": "start"})
+
+                if response[0] and isinstance(response[1], AsyncGenerator):
+                    async for chunk in response[1]:
+                        await websocket.send_text(chunk)
+                elif isinstance(response[1], str):
+                    await websocket.send_text(response[1])
+
+                await websocket.send_json({"chat": "end"})
+
+            case "audio_chat":
                 # audio_bytes = TTS.synthesize_speech(msg["message"])
 
                 # with open("test.pcm", "wb") as f:
                 #     f.write(audio_bytes)
 
-                await websocket.send_json({"audio_stream": "start"})
+                audio_data = await websocket.receive_bytes()
 
-                await TTS.synthesize_speech_stream(msg["message"], websocket)
+                prompt = STT.transcribe(audio_data)
 
-                await websocket.send_json({"audio_stream": "end"})
+                response = await MODEL.route(prompt)
 
+                await websocket.send_json({"chat": "start"})
 
+                if response[0] and isinstance(response[1], AsyncGenerator): 
+                    sentence_buffer = ""
 
-@app.post("/chat")
-async def call_model(req: PySchemas.OllamaRequest):
+                    async for chunk in response[1]:
+                        sentence_buffer += chunk
 
-    response = await MODEL.route(req.prompt)
+                        if any(sentence_buffer.endswith(p) for p in [".", "!", "?", "\n"]):
+                            await TTS.synthesize_speech_stream(sentence_buffer.strip(), websocket)
+                            sentence_buffer = ""
+                    
+                    if sentence_buffer.strip():
+                        await TTS.synthesize_speech_stream(sentence_buffer.strip(), websocket)
 
-    return StreamingResponse(response[1], media_type="text/event-stream") if response[0] and isinstance(response[1], AsyncGenerator) else response[1]
+                elif isinstance(response[1], str):
+                    await TTS.synthesize_speech_stream(response[1], websocket)
 
-# maybe switch to PCM for audio instead of WAV?
-# SWITCH BACK TO .POST WHEN ABLE
-# need to cleanup response text from LLM (ast, md, etc,)
-@app.post("/chat-audio")
-async def call_model_audio(audio: UploadFile = File(...)):
+                await websocket.send_json({"chat": "end"})
 
-    audio_bytes = await audio.read()
-
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-        tmp.write(audio_bytes)
-        tmp_path = tmp.name
-
-    prompt: str = STT.transcribe(tmp_path)
-
-    os.unlink(tmp_path)
-
-    response = await MODEL.route(prompt)
-
-    async def generate_audio_stream(async_gen: AsyncGenerator):
-        sentence_buffer = ""
-        first_chunk = True
-
-        async for chunk in async_gen:
-            sentence_buffer += chunk
-
-            if any(sentence_buffer.endswith(p) for p in [".", "!", "?", "\n"]):
-                audio_bytes = TTS.synthesize_speech(sentence_buffer.strip())
-                # print(f"Audio bytes length: {len(audio_bytes)}")
-                # print(f"First 4 bytes: {audio_bytes[:4]}")
-                # print(sentence_buffer)
-                sentence_buffer = ""
-                
-                if first_chunk:
-                    yield audio_bytes
-                    first_chunk = False
-                else:
-                    yield audio_bytes[44:]
-
-        if sentence_buffer.strip():
-            audio_bytes = TTS.synthesize_speech(sentence_buffer.strip())
-            yield audio_bytes[44:] if not first_chunk else audio_bytes
-
-    return StreamingResponse(generate_audio_stream(response[1]), media_type="audio/wav") if response[0] and isinstance(response[1], AsyncGenerator) else "Unable Return Audio Stream!" # TTS.synthesize_speech(response[1]) NEED TO ADD STATIC AUDIO SUPPORT
